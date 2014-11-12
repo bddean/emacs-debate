@@ -1,23 +1,10 @@
-;; This is a WYSIWYG mode for emacs for managing files for college policy debate.
-
-;; longlines-mode?
-;; function to show headers with nonhighlighted ev
-;; outline ellipses should indicate number of cards etc. requires lots of work.
-;; TODO: yank as card
-
-;; hide-other doesn't work
-;; outline-up-heading doesn't work
-;; mode map
-;; saving takes a long time
-;; http://www.emacswiki.org/emacs/Easymacs
-;;    A convention for use of `buffer-invisibility-spec' is that a major
+;; This is a WYSIWYG emacs mode for managing files for college policy debate.
+;; TODO:   A convention for use of `buffer-invisibility-spec' is that a major
 ;; mode should use the mode's own name as an element of
 ;; `buffer-invisibility-spec' and as the value of the `invisible' property:
 ;; - TODO:
 ;;   - change 'underline' and 'highlight' translations to u and h
 ;;     - or just different levels of highlight, starting at h0 for underline
-;;   - auto underline
-;;   - speeches
 ;;   - exporting to word files
 ;;   - cite generation etc
 ;;   - export / email speeches
@@ -31,8 +18,6 @@
 (require 'enriched)
 (require 'outline)
 (require 'cl)
-
-(setq debug-on-error t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  Utilities ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun trim-string (string)
@@ -67,91 +52,83 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
   "Borrowed from skewer.el. Temporarily highlight region from START to END."
   (let ((overlay (make-overlay start end)))
     (overlay-put overlay 'face 'secondary-selection)
-    (run-with-timer (or timeout 0.2) nil 'delete-overlay overlay)))
+    (run-with-timer (or timeout 0.35) nil 'delete-overlay overlay)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  Speeches  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvar debate-tournaments
-  '(("GSU" "28 Sept 2014" "30 Sept 2014" 6 4) ;; 6 prelims, breaks to octos
-    ("Retreat" "19 Aug 2014" "23 Aug 2014")
-    ("Kentucky" "Some date" 1 2)))
 (defvar debate-rounds-dir "~/rounds")
+(defvar debate-active-tournament nil "Name of debate tournament used for speech creation")
+(defvar debate-active-round      nil "Name of debate round used for speech creation")
+(defvar debate-active-speech     nil "Name of debate round used for speech creation")
 
-(defun today-in-range-p (start end)
-  ;; Append time so these are valid datetime strings
-  (let ((today (current-time-string))
-        (start (concat start " 00:00:[00]"))
-        (end (concat end " 00:00:[00]")))
-    (and (>= (date-to-day today) (date-to-day start))
-         (<= (date-to-day today) (date-to-day end)))))
+(find-buffer-visiting "/home/ben/Dropbox/notes/misc.org")
+(defvar mode-line-debate '((:eval (concat "  " (or debate-active-tournament "?") "|"
+                                          (or debate-active-round      "?") "|"
+                                          (or debate-active-speech     "?")))))
+(put 'mode-line-debate 'risky-local-variable t)
 
-(defun debate-current-tournament ()
-  "Get a tournament that is taking place today"
-  (let (result nil)
-    (dolist tournament debate-tournaments
-            (let ((start-day (nth 1 tournament))
-                  (end-day   (nth 2 tournament))
-                  (when (today-in-range-p start-day end-day)
-                    (setq result tournament)))))
-    result))
+(defun debate-current-speech-file ()
+  (concat debate-rounds-dir "/"
+          debate-active-tournament "/"
+          debate-active-round "/"
+          debate-active-speech ".db8"))
+(defun debate-speech-buffer ()
+  "Get the file visiting the current speech document. Create it if it doesn't exist."
+  (and (and debate-active-tournament debate-active-round debate-active-speech)
+       (let ((speechfile (debate-current-speech-file)))
+         (mkdir (file-name-directory speechfile) 'parents)
+         (find-file-noselect speechfile 'nowarn))))
 
-(defun debate-round-string (number &optional prelims elims)
-  (if (or (not prelims) (not elims)
-          (<= number prelims)
-          (> number (+ prelims elims)));; hide-other doesn't work
-;; outline-up-heading doesn't work
 
-      (format "Round %d" number)
-    (second
-     (assoc (- elims (- number prelims 1))
-            '((1 "Finals")
-              (2 "Semifinals")
-              (3 "Quarterfinals")
-              (4 "Octofinals")
-              (5 "Double octos")
-              (6 "Quadruple octos") (7 "Octo octos"))))))
-(defun debate-rounds-for-tournament (prelims elims)
-  "Get the a list of debate rounds for a tournament"
-  (append (cl-loop for i from 1 to prelims collect (format "Round %d" i))
-          (reverse (cl-loop for i from 1 to elims collect (nth (- i 1)
-                                                           '("Finals"
-                                                             "Semifinals"
-                                                             "Quarterfinals"
-                                                             "Octofinals"
-                                                             "Double octos"
-                                                             "Quad octos"
-                                                             "Octo octos"))))))
-(defun debate-new-round ()
-  "Create directory for a new debate round"
-  (let* ((tournament (debate-current-tournament))
-         (name (nth 0 tournament))
-         (prelims (nth 3 tournament))
-         (elims (nth 4 tournament)))
-    (unless (member name (directory-files debate-rounds-dir))
-      (mkdir (concat debate-rounds-dir "/" name)))
-    (let ((rounds (debate-rounds-for-tournament prelims elims))
-          (previous-round-idx 0))
-      (dolist file (directory-files (concat debate-rounds-dir "/" name))
-        (let (pos (position file rounds))
-          (when (and pos (> pos previous-round-idx))
-            (setq previous-round-idx pos))))
-      (let* ((round (or (nth (+ previous-round-idx 1) rounds)))
-             (round-dir (concat debate-rounds-dir "/" name "/" rounds)))
-        (mkdir round-dir)
-        (find-file (concat round-dir "/" "round.org"))
-        (insert 
-"* Opponent
 
-* Strategy
+(defun debate-change-tournament ()
+  (interactive)
+  (setq debate-active-tournament (read-from-minibuffer "Tournament name: "))
+  (setq debate-active-round nil)
+  (setq debate-active-speech nil))
 
-* Judges
-")
-        (beginning-of-buffer)
-        (forward-line 1)))))
+(defun debate-change-round ()
+  (interactive)
+  (unless debate-active-tournament (debate-change-tournament))
+  (let ((round (read-from-minibuffer "Round number or elim: ")))
+    (setq debate-active-round ;; round
+          (if (string-match "^[0-9]+$" round)
+              (concat "Round " round)
+            round)))
+  (setq debate-active-speech nil))
 
-       
+(defun debate-change-speech ()
+  (interactive)
+  (unless debate-active-tournament (debate-change-tournament))
+  (unless debate-active-round (debate-change-round))
+  (setq debate-active-speech (read-from-minibuffer "Speech: ")))
+
+
+
+(unless (memq 'mode-line-debate mode-line-format)
+  (let ((pos (memq 'mode-line-buffer-identification mode-line-format)))
+    (setcdr pos (cons 'mode-line-debate (cdr pos)))))
+;; (remove 'mode-line-debate mode-line-format)
+
+(defun debate-add-to-speech ()
+  (interactive)
+  (let ((speech-buffer (debate-speech-buffer)))
+    (with-current-buffer speech-buffer
+      (unless (= (line-beginning-position) (point))
+        (insert "\n")))
+    (let ((start) (end))
+      (save-excursion
+        (when (not (region-active-p))
+          (outline-mark-subtree))
+        (setq start (region-beginning))
+        (setq end (region-end)))
+      (append-to-buffer speech-buffer start end)
+      (flash-region start end))
+    (with-current-buffer speech-buffer
+      (unless (= (line-end-position) (point))
+        (insert "\n"))
+      (save-buffer))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;   Outline Functions ;;;;;;;;;;;;;;;;;;;;;;;;;
-;TODO: outline-up-heading, the opposite function if there is one
 (defun debate-hide-sublevels ()
   (outline-back-to-heading)
   (while (not (eobp))
@@ -168,7 +145,7 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
                   (outline-next-heading)
                   (< (point) end))
                 (not (eobp)))
-        (funcall fun))))
+      (funcall fun))))
 
 (defun debate-next-preface ()
   "Replacement for `outline-next-preface'"
@@ -197,9 +174,9 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
                     (or (not (get-char-property (point) 'invisible))
                         invisible-ok)
                     (debate-current-heading-level)))))
-          (forward-line direction))
-    (beginning-of-line)
-    (point))
+    (forward-line direction))
+  (beginning-of-line)
+  (point))
 (defun debate-next-heading ()
   (interactive)
   (debate-near-heading 1 t))
@@ -212,7 +189,6 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
       (move-beginning-of-line 1)
     (debate-near-heading -1 invisible-ok)))
 (defun debate-current-heading-level (&optional invisible-ok)
-  ;; TODO: arg
   ;; Assume we're at the heading line now
   ;; (interactive)
   (save-excursion
@@ -244,8 +220,8 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
   (interactive)
   (let ((next-heading nil)
         (current-heading (save-excursion
-                          (forward-line -1)
-                          (debate-current-heading-level))))
+                           (forward-line -1)
+                           (debate-current-heading-level))))
     (if current-heading
         (if (= current-heading 4)
             (set-line-category 'debate-card-category)
@@ -288,19 +264,19 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
   (save-excursion
     (if (text-property-any start end 'category 'debate-underline-category)
         ;; If there is underlined (non-highlighted) text, underline
-          (while (< start end)
-            (when (equal (plist-get (text-properties-at start) 'category)
-                         'debate-underline-category)
-              (add-text-properties start (1+ start)
-                                   '(category debate-highlight-category)))
-            (setq start (1+ start)))
+        (while (< start end)
+          (when (equal (plist-get (text-properties-at start) 'category)
+                       'debate-underline-category)
+            (add-text-properties start (1+ start)
+                                 '(category debate-highlight-category)))
+          (setq start (1+ start)))
       ;; If there is no underlined text, remove all highlighting
-          (while (< start end)
-            (when (equal (plist-get (text-properties-at start) 'category)
-                         'debate-highlight-category)
-              (add-text-properties start (1+ start)
-                                   '(category debate-underline-category)))
-            (setq start (1+ start))))))
+      (while (< start end)
+        (when (equal (plist-get (text-properties-at start) 'category)
+                     'debate-highlight-category)
+          (add-text-properties start (1+ start)
+                               '(category debate-underline-category)))
+        (setq start (1+ start))))))
 
 (setplist 'debate-highlight-category
           '(face (debate-highlight-face debate-underline-face)
@@ -335,9 +311,9 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
                  line-prefix "+ "
                  wrap-prefix "  "))
 (setq debate-headings '(debate-pocket-category
-                       debate-hat-category
-                       debate-block-category
-                       debate-tag-category))
+                        debate-hat-category
+                        debate-block-category
+                        debate-tag-category))
 
 (defface debate-card-face
   (list (cons 'default (list :foreground "dim grey")))
@@ -398,9 +374,10 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
     
     ;; Brittle code. This side up. Fragile.
     ;; Better ways to do this:
-    ;;   - Elegant way: elisp library to wrap around libots.c
-    ;;   - Easy way: use use shr-external-rendering-functions to parse
-    ;;     html
+    ;; - Elegant way: elisp library to wrap around libots.c. No
+    ;;   need to do html parsing then.
+    ;; - Easy way: use use shr-external-rendering-functions to parse
+    ;;   html
     (cl-loop for elem in (nth 3 parsed-html) do
              (when (and (listp elem) (equal (first elem) 'font))
                (let ((span (nth 2 elem))
@@ -540,6 +517,7 @@ better regexp: http://tinyurl.com/529pqm
     (define-key map (kbd "C-c C-a") 'show-all)
     (define-key map (kbd "C-c C-c") 'outline-toggle-children)
     (define-key map (kbd "C-c c") 'show-subtree)
+    (define-key map (kbd "C-c d") 'debate-add-to-speech)
     (define-key map (kbd "M-p") 'debate-set-heading)
     (define-key map (kbd "M-n") 'hide-sublevels)
     (define-key map (kbd "C-c C-u") 'debate-toggle-underline)
@@ -555,7 +533,7 @@ better regexp: http://tinyurl.com/529pqm
   (make-local-variable 'yank-excluded-properties)
   ;; TODO exclude face from yank
   (setq yank-excluded-properties
-       (delete 'category yank-excluded-properties))
+        (delete 'category yank-excluded-properties))
   (unless (memq 'debate buffer-file-format)
     (add-to-list 'buffer-file-format 'debate))
   (font-lock-mode nil)
