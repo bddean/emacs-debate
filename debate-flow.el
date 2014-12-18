@@ -43,7 +43,7 @@
     (table--cell-insert-char speech-name)
     (table-forward-cell))
   (narrow-to-page))
-(defun db8-divide ()
+(defun debate--divide ()
   (table-split-cell-vertically)
   (setq above-cell (table--get-coordinate))
   (setcdr above-cell (- (cdr above-cell) 1))
@@ -53,7 +53,7 @@
     (setq fardown (cdr (table--get-coordinate)))
     (search-forward (char-to-string table-cell-intersection-char))
     (unless (looking-at "\\s-*$")
-      (db8-divide))
+      (debate--divide))
     (forward-char)))
 
 (setq page-begin "\\(\\`\\|\n\\)")
@@ -288,3 +288,4 @@ a spreadsheet
   (set (make-local-variable 'offcase-speeches)
        ["1NC" "2AC" "2NC" "1AR" "2NR" "2AR"])
   (setq truncate-lines t))
+
