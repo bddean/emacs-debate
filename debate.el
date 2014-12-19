@@ -56,21 +56,26 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  Speeches  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar debate-rounds-dir "~/rounds")
+(defvar debate-name (user-login-name))
+
 (defvar debate-active-tournament nil "Name of debate tournament used for speech creation")
 (defvar debate-active-round      nil "Name of debate round used for speech creation")
 (defvar debate-active-speech     nil "Name of debate round used for speech creation")
 
-(find-buffer-visiting "/home/ben/Dropbox/notes/misc.org")
 (defvar mode-line-debate '((:eval (concat "  " (or debate-active-tournament "?") "|"
-                                          (or debate-active-round      "?") "|"
-                                          (or debate-active-speech     "?")))))
+                                          (or debate-active-round "?") "|"
+                                          (or debate-active-speech "?")))))
 (put 'mode-line-debate 'risky-local-variable t)
 
 (defun debate-current-speech-file ()
   (concat debate-rounds-dir "/"
+          (format-time-string "%Y") "/" ;; current year
           debate-active-tournament "/"
           debate-active-round "/"
-          debate-active-speech ".db8"))
+          debate-active-speech "-"
+          debate-active-tournament "-"
+          debate-active-round "-"
+          debate-name".db8"))
 (defun debate-speech-buffer ()
   "Get the file visiting the current speech document. Create it if it doesn't exist."
   (and (and debate-active-tournament debate-active-round debate-active-speech)
@@ -96,18 +101,37 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
             round)))
   (setq debate-active-speech nil))
 
+(defun debate-next-speech (previous)
+  (cdr (assoc-string previous '(("1AC" . "2AC")
+                                ("1NC" . "2NC")
+                                ("2AC" . "1AR")
+                                ("2NC" . "2NR")
+                                ("1NR" . "2NR")
+                                ("1AR" . "2AR")
+                                ("2NR" . "1NC")
+                                ("2AR" . "1NC")))))
+
 (defun debate-change-speech ()
   (interactive)
   (unless debate-active-tournament (debate-change-tournament))
   (unless debate-active-round (debate-change-round))
-  (setq debate-active-speech (read-from-minibuffer "Speech: ")))
+  (setq debate-active-speech
+        (completing-read "Speech: "
+                         (cond ((not debate-active-speech)
+                                '("1AC" "1NC" "2AC" "2NC" "1NR" "1AR" "2NR" "2AR"))
+                               ((equal (elt debate-active-speech 1) ?A)
+                                '("1AC" "2AC" "1AR" "2AR"))
+                               ((equal (elt debate-active-speech 1) ?N)
+                                '("1NC" "2NC" "1NR" "2NR")))
+                         nil
+                         t nil nil
+                         (debate-next-speech debate-active-speech))))
 
 
 
 (unless (memq 'mode-line-debate mode-line-format)
   (let ((pos (memq 'mode-line-buffer-identification mode-line-format)))
     (setcdr pos (cons 'mode-line-debate (cdr pos)))))
-;; (remove 'mode-line-debate mode-line-format)
 
 (defun debate-add-to-speech ()
   (interactive)
@@ -250,7 +274,7 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
     (if current-heading
         (debate-set-heading (+ current-heading amount))
       (message "Point is not at a heading"))))
-  
+
 (defun debate-toggle-underline (start end)
   (interactive "r")
   (save-excursion
@@ -401,6 +425,8 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
     (while (looking-at "[\s\t\n]*$")
       (forward-line direction))
     (point)))
+
+
 (defun debate-expand-cite ()
   ;; TODO: format cite, card text
   ;; TODO: stop shr from filling paragraphs, or reverse it <- should work now, untested <- was working, then stopped???
@@ -473,7 +499,6 @@ better regexp: http://tinyurl.com/529pqm
     (newline)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  File Format ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; TODO: with-no-warnings?
 (defconst debate-translations
   '((category (debate-highlight-category "highlight")
               (debate-underline-category "underline")
