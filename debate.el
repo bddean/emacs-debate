@@ -152,6 +152,61 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
         (insert "\n"))
       (save-buffer))))
 
+;;;; exporting
+(defun debate-export-html ()
+  (interactive)
+  (save-match-data
+    (let* ((oldbuffer (current-buffer))
+           (oldfile (buffer-file-name))
+           (newfile (concat (file-name-directory oldfile)
+                            (file-name-base oldfile) ".html")))
+      (with-temp-file newfile
+        (save-excursion
+          (insert-file-contents-literally oldfile nil
+                                          (length debate-initial-annotation))
+          (while (search-forward "\n" nil t) (replace-match "<p>\n")))
+        (insert "
+<head>
+  <style>
+  body {
+    font-size: 10px;
+  }
+  pocket {
+    font-size: 28px;
+    font-weight: bold;
+  }
+  hat {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  block {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  tag {
+    font-weight: bold;
+    font-size: 12px;
+  }
+  highlight {
+    background-color: #FF0;
+    text-decoration: underline;
+    font-weight: bold;
+    font-size:11px;
+  }
+  underline {
+    text-decoration: underline;
+    font-weight: bold;
+    font-size:11px;
+  }
+  </style>
+</head>
+  <body>\n")
+        (end-of-buffer)
+        (insert"
+  </body>
+</html>"))
+      (message (format "Exported to %s" newfile))
+      newfile)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;   Outline Functions ;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun debate-hide-sublevels ()
   (outline-back-to-heading)
@@ -418,7 +473,6 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
                    (setq text (propertize text 'category 'debate-card-category)))
                  (insert text))))))
 
-;; these todo's are necessary
 (defsubst next-nonempty-line (direction)
   (save-match-data
     (forward-line direction)
@@ -480,8 +534,6 @@ better regexp: http://tinyurl.com/529pqm
                                  text-end))
         (kill-this-buffer))
       (delete-region (line-beginning-position) (line-end-position))
-      ;; TODO: auto-auto-underline :) customization variable
-      ;; TODO: auto-underline if auto-auto-underline is non-nil
       (insert text-full-content))))
 
 (defun debate-cut-card (tag text)
@@ -495,7 +547,7 @@ better regexp: http://tinyurl.com/529pqm
     (newline))
   (let ((start (point)))
     (insert text)
-    (debate-auto-underline start (point))
+    (when debate-always-auto-underline (debate-auto-underline start (point)))
     (newline)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  File Format ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -508,7 +560,7 @@ better regexp: http://tinyurl.com/529pqm
               (debate-hat-category       "hat")
               (debate-block-category     "block")
               (debate-tag-category       "tag"))))
-(setq debate-initial-annotation "Content-type: text/debate\n")
+(defvar debate-initial-annotation "Content-type: text/debate\n")
 (defun debate-encode (from to buffer)
   (message "encoding")
   (format-replace-strings '(("<" . "<<")))
@@ -545,7 +597,7 @@ better regexp: http://tinyurl.com/529pqm
     (define-key map (kbd "C-c d") 'debate-add-to-speech)
     (define-key map (kbd "M-p") 'debate-set-heading)
     (define-key map (kbd "M-n") 'hide-sublevels)
-    (define-key map (kbd "C-c C-u") 'debate-toggle-underline)
+    (define-key map (kbd "C-c C-u") 'debate-toggle-underline) 
     (define-key map (kbd "C-c C-h") 'debate-toggle-highlight)
     map)
   "Keymap for `debate-mode'")
