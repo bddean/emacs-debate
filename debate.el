@@ -1,10 +1,5 @@
 ;; This is a WYSIWYG emacs mode for managing files for college policy debate.
-;; TODO:   A convention for use of `buffer-invisibility-spec' is that a major
-;; mode should use the mode's own name as an element of
-;; `buffer-invisibility-spec' and as the value of the `invisible' property:
 ;; - TODO:
-;;   - change 'underline' and 'highlight' translations to u and h
-;;     - or just different levels of highlight, starting at h0 for underline
 ;;   - exporting to word files
 ;;   - cite generation etc
 ;;   - export / email speeches
@@ -364,12 +359,12 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
                  wrap-prefix "     "))
 (setplist 'debate-underline-category
           '(face debate-underline-face
-                 invisible 2
+                 invisible 'debate-2
                  line-prefix "     "
                  wrap-prefix "     "))
 (setplist 'debate-card-category
           '(face debate-card-face
-                 invisible 1
+                 invisible 'debate-1
                  line-prefix "     "
                  wrap-prefix "     "))
 
@@ -416,18 +411,18 @@ From http://xahlee.blogspot.com/2011/09/emacs-lisp-function-to-trim-string.html"
 (defun debate-hide-nonhighlighted ()
   (interactive)
   (save-window-position
-   (add-to-invisibility-spec (cons 1 t))
-   (add-to-invisibility-spec (cons 2 t))))
+   (add-to-invisibility-spec (cons 'debate-1 t))
+   (add-to-invisibility-spec (cons 'debate-2 t))))
 (defun debate-hide-nonunderlined ()
   (interactive)
   (save-window-position
-   (add-to-invisibility-spec (cons 1 t))
-   (remove-from-invisibility-spec (cons 2 t))))
+   (add-to-invisibility-spec (cons 'debate-1 t))
+   (remove-from-invisibility-spec (cons 'debate-2 t))))
 (defun debate-show-all ()
   (interactive)
   (save-window-position
-   (remove-from-invisibility-spec (cons 1 t))
-   (remove-from-invisibility-spec (cons 2 t))))
+   (remove-from-invisibility-spec (cons 'debate-1 t))
+   (remove-from-invisibility-spec (cons 'debate-2 t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;  magic things ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TODO: compare statistically to real underlining, and to verbatim
